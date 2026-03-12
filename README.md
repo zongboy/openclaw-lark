@@ -26,6 +26,7 @@ Additionally, the plugin supports:
 - **🌊 Streaming Responses**: Live streaming text directly within message cards
 - **🔒 Permission Policies**: Flexible access control policies for DMs and group chats
 - **⚙️ Advanced Group Configuration**: Per-group settings including allowlists, skill bindings, and custom system prompts
+- **🧩 Dynamic Agent Creation**: Optional per-DM-user or per-group agent/workspace isolation with automatic agent and binding creation
 
 ## Security & Risk Warnings (Read Before Use)
 

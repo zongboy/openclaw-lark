@@ -39,6 +39,7 @@ import { checkMessageGate, readFeishuAllowFromStore, type GateResult } from './g
 import { dispatchToAgent } from './dispatch';
 import { resolveFeishuGroupConfig, splitLegacyGroupAllowFrom } from './policy';
 import { threadScopedKey } from '../../channel/chat-queue';
+import { maybeCreateDynamicAgent, shouldCreateDynamicAgentForPeer } from '../../core/dynamic-agent';
 
 const logger = larkLogger('inbound/handler');
 
@@ -80,7 +81,7 @@ export async function handleFeishuMessage(params: {
   //   这里将 cfg.channels.feishu 替换为经过 getLarkAccount() 合并后的
   //   accountFeishuCfg（= base config + account override），确保下游所有 SDK 调用
   //   都能正确读取当前 account 的配置。
-  const accountScopedCfg: ClawdbotConfig = {
+  let accountScopedCfg: ClawdbotConfig = {
     ...cfg,
     channels: { ...cfg.channels, feishu: accountFeishuCfg },
   };
@@ -155,6 +156,45 @@ export async function handleFeishuMessage(params: {
   const core = LarkClient.runtime;
   const isGroup = ctx.chatType === 'group';
   const dmPolicy = accountFeishuCfg?.dmPolicy ?? 'pairing';
+  const dynamicCfg = accountFeishuCfg?.dynamicAgentCreation;
+
+  const dynamicPeerKind = isGroup ? 'group' : 'direct';
+  const dynamicPeerId = isGroup ? ctx.chatId : ctx.senderId;
+
+  if (dynamicCfg && shouldCreateDynamicAgentForPeer(dynamicCfg, dynamicPeerKind)) {
+    const initialRoute = core.channel.routing.resolveAgentRoute({
+      cfg: accountScopedCfg,
+      channel: 'feishu',
+      accountId: account.accountId,
+      peer: { kind: dynamicPeerKind, id: dynamicPeerId },
+    });
+    const matchedBy = (initialRoute as { matchedBy?: string }).matchedBy;
+
+    if (matchedBy === 'default') {
+      try {
+        const result = await maybeCreateDynamicAgent({
+          cfg,
+          runtime: core,
+          peerKind: dynamicPeerKind,
+          peerId: dynamicPeerId,
+          dynamicCfg,
+          accountId: account.accountId,
+          log,
+        });
+
+        if (result.created) {
+          accountScopedCfg = {
+            ...result.updatedCfg,
+            channels: { ...result.updatedCfg.channels, feishu: accountFeishuCfg },
+          };
+        }
+      } catch (err) {
+        log(
+          `feishu[${account.accountId}]: dynamic agent creation failed for ${dynamicPeerKind}:${dynamicPeerId}: ${String(err)}`,
+        );
+      }
+    }
+  }
 
   // Resolve per-group config early — shared by both command authorization
   // and dispatch (step 8).
@@ -194,7 +234,8 @@ export async function handleFeishuMessage(params: {
     configuredAllowFrom: (accountFeishuCfg?.allowFrom ?? []).map(String),
     configuredGroupAllowFrom,
     senderId: ctx.senderId,
-    isSenderAllowed: (senderId, allowFrom) => isNormalizedSenderAllowed({ senderId, allowFrom }),
+    isSenderAllowed: (senderId: string, allowFrom: Array<string | number>) =>
+      isNormalizedSenderAllowed({ senderId, allowFrom }),
     readAllowFromStore: () => readFeishuAllowFromStore(account.accountId),
     shouldComputeCommandAuthorized: core.channel.commands.shouldComputeCommandAuthorized,
     resolveCommandAuthorizedFromAuthorizers: core.channel.commands.resolveCommandAuthorizedFromAuthorizers,

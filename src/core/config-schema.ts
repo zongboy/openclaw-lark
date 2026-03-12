@@ -128,6 +128,18 @@ const DmConfigSchema = z
   })
   .optional();
 
+const DynamicAgentScopeEnum = z.enum(['direct', 'group', 'both']);
+
+const DynamicAgentCreationSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    scope: DynamicAgentScopeEnum.optional(),
+    workspaceTemplate: z.string().optional(),
+    agentDirTemplate: z.string().optional(),
+    maxAgents: z.number().int().positive().optional(),
+  })
+  .optional();
+
 // ---------------------------------------------------------------------------
 // Group schema
 // ---------------------------------------------------------------------------
@@ -178,6 +190,7 @@ export const FeishuAccountConfigSchema = z.object({
   footer: FeishuFooterSchema,
   markdown: MarkdownConfigSchema,
   configWrites: z.boolean().optional(),
+  dynamicAgentCreation: DynamicAgentCreationSchema,
   capabilities: CapabilitiesSchema,
   dedup: DedupSchema,
   reactionNotifications: ReactionNotificationModeSchema,

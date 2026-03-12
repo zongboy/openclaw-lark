@@ -30,6 +30,9 @@ export type FeishuGroupConfig = z.infer<typeof FeishuGroupSchema>;
 /** Per-account configuration overrides (mirrors top-level minus `accounts`). */
 export type FeishuAccountConfig = z.infer<typeof FeishuAccountConfigSchema>;
 
+/** Dynamic per-DM-user agent creation settings. */
+export type DynamicAgentCreationConfig = NonNullable<FeishuAccountConfig['dynamicAgentCreation']>;
+
 // ---------------------------------------------------------------------------
 // Domain & connection enums
 // ---------------------------------------------------------------------------
