@@ -175,6 +175,7 @@ export const FeishuAccountConfigSchema = z.object({
   groupAllowFrom: AllowFromSchema,
   requireMention: z.boolean().optional(),
   groups: z.record(z.string(), FeishuGroupSchema).optional(),
+  globalSystemPrompt: z.string().optional(),
   historyLimit: z.number().optional(),
   dmHistoryLimit: z.number().optional(),
   dms: DmConfigSchema,

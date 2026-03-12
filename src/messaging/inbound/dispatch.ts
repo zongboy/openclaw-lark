@@ -139,6 +139,26 @@ async function dispatchNormalMessage(
   }
 }
 
+function buildEffectiveGroupSystemPrompt(params: {
+  globalSystemPrompt?: string;
+  groupSystemPrompt?: string;
+}): string | undefined {
+  const globalSystemPrompt = params.globalSystemPrompt?.trim();
+  const groupSystemPrompt = params.groupSystemPrompt?.trim();
+
+  if (globalSystemPrompt && groupSystemPrompt) {
+    return [
+      '[Highest-Priority Global System Prompt]',
+      globalSystemPrompt,
+      '',
+      '[Lower-Priority Group System Prompt]',
+      groupSystemPrompt,
+    ].join('\n');
+  }
+
+  return groupSystemPrompt ?? globalSystemPrompt;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -224,8 +244,15 @@ export async function dispatchToAgent(params: {
 
   // 7. Build inbound context payload
   const isBareNewOrReset = /^\/(?:new|reset)\s*$/i.test((params.ctx.content ?? '').trim());
-  const groupSystemPrompt = dc.isGroup
+  const globalSystemPrompt = params.account.config.globalSystemPrompt?.trim() || undefined;
+  const rawGroupSystemPrompt = dc.isGroup
     ? params.groupConfig?.systemPrompt?.trim() || params.defaultGroupConfig?.systemPrompt?.trim() || undefined
+    : undefined;
+  const effectiveGroupSystemPrompt = dc.isGroup
+    ? buildEffectiveGroupSystemPrompt({
+        globalSystemPrompt,
+        groupSystemPrompt: rawGroupSystemPrompt,
+      })
     : undefined;
   const ctxPayload = buildInboundPayload(dc, {
     body: combinedBody,
@@ -240,7 +267,8 @@ export async function dispatchToAgent(params: {
     inboundHistory,
     extraFields: {
       ...params.mediaPayload,
-      ...(groupSystemPrompt ? { GroupSystemPrompt: groupSystemPrompt } : {}),
+      ...(globalSystemPrompt ? { GlobalSystemPrompt: globalSystemPrompt } : {}),
+      ...(effectiveGroupSystemPrompt ? { GroupSystemPrompt: effectiveGroupSystemPrompt } : {}),
       ...(dc.ctx.threadId ? { MessageThreadId: dc.ctx.threadId } : {}),
     },
   });
