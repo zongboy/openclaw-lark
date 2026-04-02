@@ -8,7 +8,7 @@
  * so that every consuming module can rely on well-typed configuration objects.
  */
 
-import { z, toJSONSchema } from 'zod';
+import { toJSONSchema, z } from 'zod';
 
 export { z };
 
@@ -38,7 +38,7 @@ const AllowFromSchema = z
   .union([z.string(), z.array(z.string())])
   .optional()
   .transform((v) => {
-    if (v === undefined || v === null) return undefined;
+    if (v === undefined || v == null) return undefined;
     return Array.isArray(v) ? v : [v];
   });
 
@@ -63,6 +63,10 @@ const FeishuFooterSchema = z
   .object({
     status: z.boolean().optional(),
     elapsed: z.boolean().optional(),
+    tokens: z.boolean().optional(),
+    cache: z.boolean().optional(),
+    context: z.boolean().optional(),
+    model: z.boolean().optional(),
   })
   .optional();
 
@@ -147,6 +151,7 @@ const DynamicAgentCreationSchema = z
 export const FeishuGroupSchema = z.object({
   groupPolicy: GroupPolicyEnum.optional(),
   requireMention: z.boolean().optional(),
+  respondToMentionAll: z.boolean().optional(),
   tools: ToolPolicySchema,
   skills: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),
@@ -174,6 +179,7 @@ export const FeishuAccountConfigSchema = z.object({
   groupPolicy: GroupPolicyEnum.optional(),
   groupAllowFrom: AllowFromSchema,
   requireMention: z.boolean().optional(),
+  respondToMentionAll: z.boolean().optional(),
   groups: z.record(z.string(), FeishuGroupSchema).optional(),
   globalSystemPrompt: z.string().optional(),
   historyLimit: z.number().optional(),

@@ -14,33 +14,39 @@
  * - dispatch-commands.ts — system command & permission notification
  */
 
-import type { RuntimeEnv, HistoryEntry } from 'openclaw/plugin-sdk';
-import { clearHistoryEntriesIfEnabled } from 'openclaw/plugin-sdk';
+import type { ClawdbotConfig, RuntimeEnv  } from 'openclaw/plugin-sdk';
+import type { HistoryEntry } from 'openclaw/plugin-sdk/reply-history';
+import { clearHistoryEntriesIfEnabled } from 'openclaw/plugin-sdk/reply-history';
 import type { MessageContext } from '../types';
-import type { LarkAccount } from '../../core/types';
-import type { FeishuGroupConfig } from '../../core/types';
-import type { PermissionError } from './permission';
+import type { FeishuGroupConfig, LarkAccount  } from '../../core/types';
 import { larkLogger } from '../../core/lark-logger';
 import { ticketElapsed } from '../../core/lark-ticket';
 import { createFeishuReplyDispatcher } from '../../card/reply-dispatcher';
-import { mentionedBot } from './mention';
 import {
   buildQueueKey,
-  threadScopedKey,
   registerActiveDispatcher,
+  threadScopedKey,
   unregisterActiveDispatcher,
 } from '../../channel/chat-queue';
 import { isLikelyAbortText } from '../../channel/abort-detect';
-import { type DispatchContext, buildDispatchContext, resolveThreadSessionKey } from './dispatch-context';
-import {
-  buildMessageBody,
-  buildBodyForAgent,
-  buildInboundPayload,
-  buildEnvelopeWithHistory,
-} from './dispatch-builders';
+import { isThreadCapableGroup } from '../../core/chat-info-cache';
+import { encodeFeishuRouteTarget } from '../../core/targets';
+import type { LarkClient } from '../../core/lark-client';
+import { runFeishuDoctorI18n } from '../../commands/doctor';
+import { runFeishuAuthI18n } from '../../commands/auth';
+import { getFeishuHelpI18n, runFeishuStartI18n } from '../../commands/index';
+import { buildI18nMarkdownCard, sendCardFeishu, sendMessageFeishu } from '../outbound/send';
 import { dispatchPermissionNotification, dispatchSystemCommand } from './dispatch-commands';
-import type { ClawdbotConfig } from 'openclaw/plugin-sdk';
-import { LarkClient } from '../../core/lark-client';
+import {
+  buildBodyForAgent,
+  buildEnvelopeWithHistory,
+  buildInboundPayload,
+  buildMessageBody,
+} from './dispatch-builders';
+import { type DispatchContext, buildDispatchContext, resolveThreadSessionKey } from './dispatch-context';
+import type { PermissionError } from './permission';
+import { mentionedBot } from './mention';
+import { resolveRespondToMentionAll } from './gate';
 
 const log = larkLogger('inbound/dispatch');
 
@@ -72,13 +78,14 @@ async function dispatchNormalMessage(
   if (isLikelyAbortText(dc.ctx.content?.trim() ?? '')) {
     dc.log(`feishu[${dc.account.accountId}]: abort message detected, using plain-text dispatch`);
     log.info('abort message detected, using plain-text dispatch');
-    await dispatchSystemCommand(dc, ctxPayload, false, replyToMessageId);
+    await dispatchSystemCommand(dc, ctxPayload, replyToMessageId);
     return;
   }
 
   const { dispatcher, replyOptions, markDispatchIdle, markFullyComplete, abortCard } = createFeishuReplyDispatcher({
     cfg: dc.accountScopedCfg,
     agentId: dc.route.agentId,
+    sessionKey: dc.threadSessionKey ?? dc.route.sessionKey,
     chatId: dc.ctx.chatId,
     replyToMessageId: replyToMessageId ?? dc.ctx.messageId,
     accountId: dc.account.accountId,
@@ -192,6 +199,24 @@ export async function dispatchToAgent(params: {
   // 1. Derive shared context (including route resolution + system event)
   const dc = buildDispatchContext(params);
 
+  // 1a. Thread detection fallback for topic groups.
+  //     In topic groups (chat_mode=topic), reply events may carry root_id
+  //     without thread_id.  When threadSession is enabled, use root_id as
+  //     a synthetic threadId so replies stay inside the topic instead of
+  //     creating a new top-level message.
+  if (!dc.isThread && dc.isGroup && dc.ctx.rootId && dc.account.config?.threadSession === true) {
+    const threadCapable = await isThreadCapableGroup({
+      cfg: dc.accountScopedCfg,
+      chatId: dc.ctx.chatId,
+      accountId: dc.account.accountId,
+    });
+    if (threadCapable) {
+      log.info(`inferred thread from root_id=${dc.ctx.rootId} in topic group ${dc.ctx.chatId}`);
+      dc.isThread = true;
+      dc.ctx = { ...dc.ctx, threadId: dc.ctx.rootId };
+    }
+  }
+
   // 1b. Resolve thread session isolation (async: may query group info API)
   if (dc.isThread && dc.ctx.threadId) {
     dc.threadSessionKey = await resolveThreadSessionKey({
@@ -254,15 +279,31 @@ export async function dispatchToAgent(params: {
         groupSystemPrompt: rawGroupSystemPrompt,
       })
     : undefined;
+  const originatingTo =
+    isBareNewOrReset && dc.isThread
+      ? encodeFeishuRouteTarget({
+          target: dc.feishuTo,
+          replyToMessageId: params.replyToMessageId ?? params.ctx.messageId,
+          threadId: dc.ctx.threadId,
+        })
+      : undefined;
   const ctxPayload = buildInboundPayload(dc, {
     body: combinedBody,
     bodyForAgent,
     rawBody: params.ctx.content,
     commandBody: params.ctx.content,
+    originatingTo,
     senderName: params.ctx.senderName ?? params.ctx.senderId,
     senderId: params.ctx.senderId,
     messageSid: params.ctx.messageId,
-    wasMentioned: mentionedBot(params.ctx),
+    wasMentioned:
+      mentionedBot(params.ctx) ||
+      (params.ctx.mentionAll &&
+        resolveRespondToMentionAll({
+          groupConfig: params.groupConfig,
+          defaultConfig: params.defaultGroupConfig,
+          accountFeishuCfg: params.account.config,
+        })),
     replyToBody: params.quotedContent,
     inboundHistory,
     extraFields: {
@@ -273,6 +314,64 @@ export async function dispatchToAgent(params: {
     },
   });
 
+  // 8a. Intercept /feishu commands for i18n multi-locale card dispatch
+  //     Must run BEFORE the SDK command check — the SDK does not recognise
+  //     plugin-registered commands via isControlCommandMessage, so
+  //     /feishu_* falls through to the AI agent otherwise.
+  const contentTrimmed = (params.ctx.content ?? '').trim();
+  const isDoctorCommand = /^\/feishu[_ ]doctor\s*$/i.test(contentTrimmed);
+  const isAuthCommand = /^\/feishu[_ ](?:auth|onboarding)\s*$/i.test(contentTrimmed);
+  const isStartCommand = /^\/feishu[_ ]start\s*$/i.test(contentTrimmed);
+  const isHelpCommand = /^\/feishu(?:[_ ]help)?\s*$/i.test(contentTrimmed);
+
+  const i18nCommandName = isDoctorCommand
+    ? 'doctor'
+    : isAuthCommand
+      ? 'auth'
+      : isStartCommand
+        ? 'start'
+        : isHelpCommand
+          ? 'help'
+          : null;
+
+  if (i18nCommandName) {
+    dc.log(`feishu[${dc.account.accountId}]: ${i18nCommandName} command detected, using i18n dispatch`);
+    log.info(`${i18nCommandName} command detected, using i18n dispatch`);
+    try {
+      let i18nTexts: Record<string, string>;
+      if (isDoctorCommand) {
+        i18nTexts = await runFeishuDoctorI18n(dc.accountScopedCfg, dc.account.accountId);
+      } else if (isAuthCommand) {
+        i18nTexts = await runFeishuAuthI18n(dc.accountScopedCfg);
+      } else if (isStartCommand) {
+        i18nTexts = runFeishuStartI18n(dc.accountScopedCfg);
+      } else {
+        i18nTexts = getFeishuHelpI18n();
+      }
+      const card = buildI18nMarkdownCard(i18nTexts);
+      await sendCardFeishu({
+        cfg: dc.accountScopedCfg,
+        to: dc.ctx.chatId,
+        card,
+        replyToMessageId: params.replyToMessageId ?? dc.ctx.messageId,
+        accountId: dc.account.accountId,
+        replyInThread: dc.isThread,
+      });
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      dc.error(`feishu[${dc.account.accountId}]: ${i18nCommandName} i18n dispatch failed: ${errMsg}`);
+      await sendMessageFeishu({
+        cfg: dc.accountScopedCfg,
+        to: dc.ctx.chatId,
+        text: `${i18nCommandName} failed: ${errMsg}`,
+        replyToMessageId: params.replyToMessageId ?? dc.ctx.messageId,
+        accountId: dc.account.accountId,
+        replyInThread: dc.isThread,
+      });
+    }
+    return;
+  }
+
   // 8. Dispatch: system command vs. normal message
   const isCommand = dc.core.channel.commands.isControlCommandMessage(params.ctx.content, params.accountScopedCfg);
 
@@ -280,7 +379,7 @@ export async function dispatchToAgent(params: {
   const skillFilter = dc.isGroup ? (params.groupConfig?.skills ?? params.defaultGroupConfig?.skills) : undefined;
 
   if (isCommand) {
-    await dispatchSystemCommand(dc, ctxPayload, isBareNewOrReset, params.replyToMessageId);
+    await dispatchSystemCommand(dc, ctxPayload, params.replyToMessageId);
     // /new and /reset explicitly start a new session — clear pending history
     if (isBareNewOrReset && dc.isGroup && historyKey && params.chatHistories) {
       clearHistoryEntriesIfEnabled({

@@ -10,9 +10,9 @@
  */
 
 import type {
+  FeishuAccountConfigSchema,
   FeishuConfigSchema,
   FeishuGroupSchema,
-  FeishuAccountConfigSchema,
   UATConfigSchema,
   z,
 } from './config-schema';
@@ -75,6 +75,10 @@ export interface FeishuToolsConfig {
 export interface FeishuFooterConfig {
   status?: boolean;
   elapsed?: boolean;
+  tokens?: boolean;
+  cache?: boolean;
+  context?: boolean;
+  model?: boolean;
 }
 
 // ---------------------------------------------------------------------------

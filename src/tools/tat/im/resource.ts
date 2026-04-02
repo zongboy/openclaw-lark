@@ -12,12 +12,12 @@
  * 凭证: tenant_access_token
  */
 
-import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
-import { buildRandomTempFilePath } from 'openclaw/plugin-sdk';
-import { Type } from '@sinclair/typebox';
-import { json, createToolContext, formatLarkError } from '../../oapi/helpers';
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
+import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
+import { buildRandomTempFilePath } from 'openclaw/plugin-sdk/temp-path';
+import { Type } from '@sinclair/typebox';
+import { StringEnum, createToolContext, formatLarkError, json, registerTool } from '../../oapi/helpers';
 
 // ===========================================================================
 // Shared constants
@@ -116,7 +116,7 @@ const FeishuImBotImageSchema = Type.Object({
   file_key: Type.String({
     description: '资源 Key，图片消息的 image_key（img_xxx）或文件消息的 file_key（file_xxx）',
   }),
-  type: Type.Union([Type.Literal('image'), Type.Literal('file')], {
+  type: StringEnum(['image', 'file'], {
     description: '资源类型：image（图片消息中的图片）、file（文件/音频/视频消息中的文件）',
   }),
 });
@@ -127,12 +127,13 @@ interface FeishuImBotImageParams {
   type: 'image' | 'file';
 }
 
-export function registerFeishuImBotImageTool(api: OpenClawPluginApi) {
-  if (!api.config) return;
+export function registerFeishuImBotImageTool(api: OpenClawPluginApi): boolean {
+  if (!api.config) return false;
 
   const { getClient, log } = createToolContext(api, 'feishu_im_bot_image');
 
-  api.registerTool(
+  return registerTool(
+    api,
     {
       name: 'feishu_im_bot_image',
       label: 'Feishu: IM Bot Image Download',
@@ -182,6 +183,4 @@ export function registerFeishuImBotImageTool(api: OpenClawPluginApi) {
     },
     { name: 'feishu_im_bot_image' },
   );
-
-  api.logger.info?.('feishu_im_bot_image: Registered feishu_im_bot_image tool');
 }

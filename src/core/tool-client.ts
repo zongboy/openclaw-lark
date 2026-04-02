@@ -31,8 +31,8 @@
 import * as Lark from '@larksuiteoapi/node-sdk';
 import type { ClawdbotConfig } from 'openclaw/plugin-sdk';
 import type { ConfiguredLarkAccount } from './types';
-import { getLarkAccount, getEnabledLarkAccounts } from './accounts';
-import { LarkClient } from './lark-client';
+import { getEnabledLarkAccounts, getLarkAccount } from './accounts';
+import { LarkClient, getResolvedConfig } from './lark-client';
 import { getTicket } from './lark-ticket';
 import { callWithUAT } from './uat-client';
 import { getStoredToken } from './token-store';
@@ -42,14 +42,14 @@ import { larkLogger } from './lark-logger';
 import { type ToolActionKey, getRequiredScopes } from './scope-manager';
 import { rawLarkRequest } from './raw-request';
 import {
-  LARK_ERROR,
-  NeedAuthorizationError,
   AppScopeCheckFailedError,
   AppScopeMissingError,
+  LARK_ERROR,
+  NeedAuthorizationError,
   UserAuthRequiredError,
   UserScopeInsufficientError,
 } from './auth-errors';
-import type { ScopeErrorInfo, AuthHint, TryInvokeResult } from './auth-errors';
+import type { AuthHint, ScopeErrorInfo, TryInvokeResult } from './auth-errors';
 
 // Re-export for backward compatibility — 下游模块可继续从 tool-client 导入
 export {
@@ -471,10 +471,15 @@ export function createToolClient(config: ClawdbotConfig, accountIndex = 0): Tool
   const ticket = getTicket();
 
   // 1. 解析账号
+  //
+  // `config` is the closure-captured snapshot from plugin registration and may be
+  // stale after a hot-reload.  Use getResolvedConfig() to always get the live config.
+  const resolveConfig = getResolvedConfig(config);
+
   let account: ConfiguredLarkAccount | undefined;
 
   if (ticket?.accountId) {
-    const resolved = getLarkAccount(config, ticket.accountId);
+    const resolved = getLarkAccount(resolveConfig, ticket.accountId);
     if (!resolved.configured) {
       throw new Error(
         `Feishu account "${ticket.accountId}" is not configured (missing appId or appSecret). ` +
@@ -491,7 +496,7 @@ export function createToolClient(config: ClawdbotConfig, accountIndex = 0): Tool
   }
 
   if (!account) {
-    const accounts = getEnabledLarkAccounts(config);
+    const accounts = getEnabledLarkAccounts(resolveConfig);
     if (accounts.length === 0) {
       throw new Error(
         'No enabled Feishu accounts configured. ' + 'Please add appId and appSecret in config under channels.feishu',

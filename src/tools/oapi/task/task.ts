@@ -17,11 +17,13 @@
 import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
 import { Type } from '@sinclair/typebox';
 import {
-  json,
-  createToolContext,
-  parseTimeToTimestampMs,
+  StringEnum,
   assertLarkOk,
+  createToolContext,
   handleInvokeErrorWithAutoAuth,
+  json,
+  parseTimeToTimestampMs,
+  registerTool,
 } from '../helpers';
 import type { PaginatedData, TaskCreateData } from '../sdk-types';
 
@@ -77,7 +79,7 @@ const FeishuTaskTaskSchema = Type.Union([
           id: Type.String({
             description: '成员 open_id',
           }),
-          role: Type.Optional(Type.Union([Type.Literal('assignee'), Type.Literal('follower')])),
+          role: Type.Optional(StringEnum(['assignee', 'follower'])),
         }),
         {
           description: '任务成员列表（assignee=负责人，follower=关注人）',
@@ -107,7 +109,7 @@ const FeishuTaskTaskSchema = Type.Union([
       ),
     ),
     user_id_type: Type.Optional(
-      Type.Union([Type.Literal('open_id'), Type.Literal('union_id'), Type.Literal('user_id')]),
+      StringEnum(['open_id', 'union_id', 'user_id']),
     ),
   }),
 
@@ -118,7 +120,7 @@ const FeishuTaskTaskSchema = Type.Union([
       description: 'Task GUID',
     }),
     user_id_type: Type.Optional(
-      Type.Union([Type.Literal('open_id'), Type.Literal('union_id'), Type.Literal('user_id')]),
+      StringEnum(['open_id', 'union_id', 'user_id']),
     ),
   }),
 
@@ -141,7 +143,7 @@ const FeishuTaskTaskSchema = Type.Union([
       }),
     ),
     user_id_type: Type.Optional(
-      Type.Union([Type.Literal('open_id'), Type.Literal('union_id'), Type.Literal('user_id')]),
+      StringEnum(['open_id', 'union_id', 'user_id']),
     ),
   }),
 
@@ -197,7 +199,7 @@ const FeishuTaskTaskSchema = Type.Union([
           id: Type.String({
             description: '成员 open_id',
           }),
-          role: Type.Optional(Type.Union([Type.Literal('assignee'), Type.Literal('follower')])),
+          role: Type.Optional(StringEnum(['assignee', 'follower'])),
         }),
         {
           description: '新的任务成员列表',
@@ -210,7 +212,7 @@ const FeishuTaskTaskSchema = Type.Union([
       }),
     ),
     user_id_type: Type.Optional(
-      Type.Union([Type.Literal('open_id'), Type.Literal('union_id'), Type.Literal('user_id')]),
+      StringEnum(['open_id', 'union_id', 'user_id']),
     ),
   }),
 ]);
@@ -282,13 +284,14 @@ type FeishuTaskTaskParams =
 // Registration
 // ---------------------------------------------------------------------------
 
-export function registerFeishuTaskTaskTool(api: OpenClawPluginApi) {
+export function registerFeishuTaskTaskTool(api: OpenClawPluginApi): void {
   if (!api.config) return;
   const cfg = api.config;
 
   const { toolClient, log } = createToolContext(api, 'feishu_task_task');
 
-  api.registerTool(
+  registerTool(
+    api,
     {
       name: 'feishu_task_task',
       label: 'Feishu Task Management',
@@ -545,5 +548,4 @@ export function registerFeishuTaskTaskTool(api: OpenClawPluginApi) {
     { name: 'feishu_task_task' },
   );
 
-  api.logger.info?.('feishu_task_task: Registered feishu_task_task tool');
 }

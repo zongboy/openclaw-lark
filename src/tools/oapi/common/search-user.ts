@@ -10,7 +10,7 @@
 
 import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
 import { Type } from '@sinclair/typebox';
-import { json, createToolContext, assertLarkOk, handleInvokeErrorWithAutoAuth } from '../helpers';
+import { assertLarkOk, createToolContext, handleInvokeErrorWithAutoAuth, json , registerTool } from '../helpers';
 import type { SearchUserData } from '../sdk-types';
 
 // ---------------------------------------------------------------------------
@@ -49,13 +49,14 @@ interface SearchUserParams {
 // Registration
 // ---------------------------------------------------------------------------
 
-export function registerSearchUserTool(api: OpenClawPluginApi) {
+export function registerSearchUserTool(api: OpenClawPluginApi): void {
   if (!api.config) return;
   const cfg = api.config;
 
   const { toolClient, log } = createToolContext(api, 'feishu_search_user');
 
-  api.registerTool(
+  registerTool(
+    api,
     {
       name: 'feishu_search_user',
       label: 'Feishu: Search User',
@@ -100,5 +101,4 @@ export function registerSearchUserTool(api: OpenClawPluginApi) {
     { name: 'feishu_search_user' },
   );
 
-  api.logger.info?.('feishu_search_user: Registered feishu_search_user tool');
 }

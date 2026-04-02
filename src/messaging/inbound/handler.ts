@@ -15,31 +15,32 @@
  */
 
 import type { ClawdbotConfig, RuntimeEnv } from 'openclaw/plugin-sdk';
+import type { HistoryEntry } from 'openclaw/plugin-sdk/reply-history';
 import {
-  recordPendingHistoryEntryIfEnabled,
   DEFAULT_GROUP_HISTORY_LIMIT,
-  resolveSenderCommandAuthorization,
-  isNormalizedSenderAllowed,
-  type HistoryEntry,
-} from 'openclaw/plugin-sdk';
+  recordPendingHistoryEntryIfEnabled,
+} from 'openclaw/plugin-sdk/reply-history';
+import { resolveSenderCommandAuthorization } from 'openclaw/plugin-sdk/zalouser';
+import { isNormalizedSenderAllowed } from 'openclaw/plugin-sdk/allow-from';
 import type { FeishuMessageEvent } from '../types';
 import { getLarkAccount } from '../../core/accounts';
+import { maybeCreateDynamicAgent, shouldCreateDynamicAgentForPeer } from '../../core/dynamic-agent';
 import { LarkClient } from '../../core/lark-client';
 import { larkLogger } from '../../core/lark-logger';
 import { ticketElapsed } from '../../core/lark-ticket';
+import { threadScopedKey } from '../../channel/chat-queue';
 import { parseMessageEvent } from './parse';
 import {
-  resolveSenderInfo,
   prefetchUserNames,
   resolveMedia,
   resolveQuotedContent,
+  resolveSenderInfo,
   substituteMediaPaths,
 } from './enrich';
-import { checkMessageGate, readFeishuAllowFromStore, type GateResult } from './gate';
+import { type GateResult, checkMessageGate, readFeishuAllowFromStore } from './gate';
+import { injectInboundHandler } from './handler-registry';
 import { dispatchToAgent } from './dispatch';
 import { resolveFeishuGroupConfig, splitLegacyGroupAllowFrom } from './policy';
-import { threadScopedKey } from '../../channel/chat-queue';
-import { maybeCreateDynamicAgent, shouldCreateDynamicAgentForPeer } from '../../core/dynamic-agent';
 
 const logger = larkLogger('inbound/handler');
 
@@ -266,3 +267,5 @@ export async function handleFeishuMessage(params: {
     logger.error(`dispatch failed: ${String(err)} (elapsed=${ticketElapsed()}ms)`);
   }
 }
+
+injectInboundHandler(handleFeishuMessage);

@@ -16,10 +16,14 @@ import { getStoredToken } from '../core/token-store';
 import { getLarkAccount } from '../core/accounts';
 import { getTicket } from '../core/lark-ticket';
 import { LarkClient } from '../core/lark-client';
-import { executeAuthorize } from './oauth';
 import { formatLarkError } from '../core/api-error';
 import { filterSensitiveScopes } from '../core/tool-scopes';
-import { json } from './oapi/helpers';
+import { openPlatformDomain } from '../core/domains';
+import { larkLogger } from '../core/lark-logger';
+import { json, registerTool } from './oapi/helpers';
+import { executeAuthorize } from './oauth';
+
+const log = larkLogger('tools/oauth-batch-auth');
 
 const FeishuOAuthBatchAuthSchema = Type.Object(
   {},
@@ -31,12 +35,13 @@ const FeishuOAuthBatchAuthSchema = Type.Object(
   },
 );
 
-export function registerFeishuOAuthBatchAuthTool(api: OpenClawPluginApi) {
+export function registerFeishuOAuthBatchAuthTool(api: OpenClawPluginApi): void {
   if (!api.config) return;
 
   const cfg = api.config;
 
-  api.registerTool(
+  registerTool(
+    api,
     {
       name: 'feishu_oauth_batch_auth',
       label: 'Feishu: OAuth Batch Authorization',
@@ -76,7 +81,7 @@ export function registerFeishuOAuthBatchAuthTool(api: OpenClawPluginApi) {
                 message:
                   `应用缺少核心权限 application:application:self_manage，无法查询可授权 scope 列表。\n\n` +
                   `请管理员在飞书开放平台开通此权限后重试。`,
-                permission_link: `https://open.feishu.cn/app/${appId}/auth?q=application:application:self_manage`,
+                permission_link: `${openPlatformDomain(account.brand)}/app/${appId}/auth?q=application:application:self_manage`,
                 app_id: appId,
               });
             }
@@ -96,14 +101,16 @@ export function registerFeishuOAuthBatchAuthTool(api: OpenClawPluginApi) {
             });
           }
 
-          // 3. 查询用户已授权的 scope
+          // 3. 过滤掉敏感 scope
+          appScopes = filterSensitiveScopes(appScopes);
+
+          // 4. 查询用户已授权的 scope
           const existing = await getStoredToken(appId, senderOpenId);
           const grantedScopes = new Set(existing?.scope?.split(/\s+/).filter(Boolean) ?? []);
 
-          // 4. 计算差集（应用已开通但用户未授权）
-          let missingScopes = appScopes.filter((s) => !grantedScopes.has(s));
-          missingScopes = filterSensitiveScopes(missingScopes);
-          // 5. 边界情况：用户已授权所有 scope
+          // 5. 计算差集（应用已开通但用户未授权）
+          const missingScopes = appScopes.filter((s) => !grantedScopes.has(s));
+          // 6. 边界情况：用户已授权所有 scope
           if (missingScopes.length === 0) {
             return json({
               success: true,
@@ -114,7 +121,7 @@ export function registerFeishuOAuthBatchAuthTool(api: OpenClawPluginApi) {
             });
           }
 
-          // 6. 飞书限制：单次最多请求 100 个 scope
+          // 7. 飞书限制：单次最多请求 100 个 scope
           const MAX_SCOPES_PER_BATCH = 100;
           let scopesToAuthorize = missingScopes;
           let batchInfo = '';
@@ -129,7 +136,11 @@ export function registerFeishuOAuthBatchAuthTool(api: OpenClawPluginApi) {
               `授权完成后，还需授权剩余 ${remainingCount} 个权限`;
           }
 
-          // 7. 调用共享的 executeAuthorize() 函数（复用 oauth.ts 逻辑）
+          // 8. 调用共享的 executeAuthorize() 函数（复用 oauth.ts 逻辑）
+          const alreadyGrantedScopes = appScopes.filter((s) => grantedScopes.has(s));
+          log.info(
+            `scope check: total=${appScopes.length}, granted=${alreadyGrantedScopes.length}, missing=${missingScopes.length}`,
+          );
           const scope = scopesToAuthorize.join(' ');
           const result = await executeAuthorize({
             account,
@@ -137,13 +148,13 @@ export function registerFeishuOAuthBatchAuthTool(api: OpenClawPluginApi) {
             scope,
             isBatchAuth: true,
             totalAppScopes: appScopes.length,
-            alreadyGranted: grantedScopes.size,
+            alreadyGranted: alreadyGrantedScopes.length,
             batchInfo,
             cfg,
             ticket,
           });
 
-          // 8. 如果是分批授权，在返回结果中添加提示
+          // 9. 如果是分批授权，在返回结果中添加提示
           if (batchInfo && result.details) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const details = result.details as any;
@@ -162,5 +173,5 @@ export function registerFeishuOAuthBatchAuthTool(api: OpenClawPluginApi) {
     { name: 'feishu_oauth_batch_auth' },
   );
 
-  api.logger.info?.('feishu_oauth_batch_auth: Registered feishu_oauth_batch_auth tool');
+  api.logger.debug?.('feishu_oauth_batch_auth: Registered feishu_oauth_batch_auth tool');
 }

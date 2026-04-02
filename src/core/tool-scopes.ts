@@ -54,7 +54,7 @@
  * - "feishu_calendar_event.create"
  * - "feishu_bitable_app_table_record.update"
  *
- * 总计：98 个工具动作
+ * 总计：96 个工具动作
  */
 export type ToolActionKey =
   | 'feishu_bitable_app.copy'
@@ -63,9 +63,7 @@ export type ToolActionKey =
   | 'feishu_bitable_app.list'
   | 'feishu_bitable_app.patch'
   | 'feishu_bitable_app_table.batch_create'
-  | 'feishu_bitable_app_table.batch_delete'
   | 'feishu_bitable_app_table.create'
-  | 'feishu_bitable_app_table.delete'
   | 'feishu_bitable_app_table.list'
   | 'feishu_bitable_app_table.patch'
   | 'feishu_bitable_app_table_field.create'
@@ -80,7 +78,6 @@ export type ToolActionKey =
   | 'feishu_bitable_app_table_record.list'
   | 'feishu_bitable_app_table_record.update'
   | 'feishu_bitable_app_table_view.create'
-  | 'feishu_bitable_app_table_view.delete'
   | 'feishu_bitable_app_table_view.get'
   | 'feishu_bitable_app_table_view.list'
   | 'feishu_bitable_app_table_view.patch'
@@ -96,7 +93,6 @@ export type ToolActionKey =
   | 'feishu_calendar_event.patch'
   | 'feishu_calendar_event.reply'
   | 'feishu_calendar_event.search'
-  | 'feishu_calendar_event_attendee.batch_delete'
   | 'feishu_calendar_event_attendee.create'
   | 'feishu_calendar_event_attendee.list'
   | 'feishu_calendar_freebusy.list'
@@ -117,6 +113,7 @@ export type ToolActionKey =
   | 'feishu_drive_file.move'
   | 'feishu_drive_file.upload'
   | 'feishu_fetch_doc.default'
+  | 'feishu_get_user.basic_batch'
   | 'feishu_get_user.default'
   | 'feishu_im_user_fetch_resource.default'
   | 'feishu_im_user_get_messages.default'
@@ -136,11 +133,9 @@ export type ToolActionKey =
   | 'feishu_task_task.patch'
   | 'feishu_task_tasklist.add_members'
   | 'feishu_task_tasklist.create'
-  | 'feishu_task_tasklist.delete'
   | 'feishu_task_tasklist.get'
   | 'feishu_task_tasklist.list'
   | 'feishu_task_tasklist.patch'
-  | 'feishu_task_tasklist.remove_members'
   | 'feishu_task_tasklist.tasks'
   | 'feishu_update_doc.default'
   | 'feishu_wiki_space.create'
@@ -196,9 +191,7 @@ export const TOOL_SCOPES: ToolScopeMapping = {
   'feishu_bitable_app_table.create': ['base:table:create'],
   'feishu_bitable_app_table.list': ['base:table:read'],
   'feishu_bitable_app_table.patch': ['base:table:update'],
-  'feishu_bitable_app_table.delete': ['base:table:delete'],
   'feishu_bitable_app_table.batch_create': ['base:table:create'],
-  'feishu_bitable_app_table.batch_delete': ['base:table:delete'],
   'feishu_bitable_app_table_record.create': ['base:record:create'],
   'feishu_bitable_app_table_record.update': ['base:record:update'],
   'feishu_bitable_app_table_record.delete': ['base:record:delete'],
@@ -214,7 +207,6 @@ export const TOOL_SCOPES: ToolScopeMapping = {
   'feishu_bitable_app_table_view.get': ['base:view:read'],
   'feishu_bitable_app_table_view.list': ['base:view:read'],
   'feishu_bitable_app_table_view.patch': ['base:view:write_only'],
-  'feishu_bitable_app_table_view.delete': ['base:view:write_only'],
   'feishu_calendar_calendar.list': ['calendar:calendar:read'],
   'feishu_calendar_calendar.get': ['calendar:calendar:read'],
   'feishu_calendar_calendar.primary': ['calendar:calendar:read'],
@@ -229,7 +221,6 @@ export const TOOL_SCOPES: ToolScopeMapping = {
   'feishu_calendar_event.instance_view': ['calendar:calendar.event:read'],
   'feishu_calendar_event_attendee.create': ['calendar:calendar.event:update'],
   'feishu_calendar_event_attendee.list': ['calendar:calendar.event:read'],
-  'feishu_calendar_event_attendee.batch_delete': ['calendar:calendar.event:read', 'calendar:calendar.event:update'],
   'feishu_calendar_freebusy.list': ['calendar:calendar.free_busy:read'],
   'feishu_task_task.create': ['task:task:write', 'task:task:writeonly'],
   'feishu_task_task.get': ['task:task:read', 'task:task:write'],
@@ -240,9 +231,7 @@ export const TOOL_SCOPES: ToolScopeMapping = {
   'feishu_task_tasklist.list': ['task:tasklist:read', 'task:tasklist:write'],
   'feishu_task_tasklist.tasks': ['task:tasklist:read', 'task:tasklist:write'],
   'feishu_task_tasklist.patch': ['task:tasklist:write'],
-  'feishu_task_tasklist.delete': ['task:tasklist:write'],
   'feishu_task_tasklist.add_members': ['task:tasklist:write'],
-  'feishu_task_tasklist.remove_members': ['task:tasklist:write'],
   'feishu_task_comment.create': ['task:comment:write'],
   'feishu_task_comment.list': ['task:comment:read', 'task:comment:write'],
   'feishu_task_comment.get': ['task:comment:read', 'task:comment:write'],
@@ -296,6 +285,7 @@ export const TOOL_SCOPES: ToolScopeMapping = {
     'search:message',
   ],
   'feishu_search_doc_wiki.search': ['search:docs:read'],
+  'feishu_get_user.basic_batch': ['contact:user.basic_profile:readonly'],
   'feishu_get_user.default': ['contact:contact.base:readonly', 'contact:user.base:readonly'],
   'feishu_search_user.default': ['contact:user:search'],
   'feishu_create_doc.default': [
@@ -422,15 +412,23 @@ export const REQUIRED_SCOPE_DESCRIPTIONS: Record<RequiredAppScope, string> = {
  * 用户需要明确知晓这些权限的影响后，才能手动授权。
  *
  * 权限说明：
- * - im:message:send_as_user - 以用户身份发送消息（高风险，可能被滥用发送钓鱼或垃圾消息）
+ * - im:message.send_as_user - 以用户身份发送消息（高风险，可能被滥用发送钓鱼或垃圾消息）
+ * - space:document:delete - 删除云文档
+ * - calendar:calendar.event:delete - 删除日程
+ * - base:table:delete - 删除多维表格数据表
  *
  * 使用场景：
  * - 批量授权时会自动过滤掉这些权限
  * - 需要这些权限的功能会单独提示用户授权
  *
- * 最后更新: 2026-03-03
+ * 最后更新: 2026-03-17
  */
-export const SENSITIVE_SCOPES = ['im:message.send_as_user'] as const;
+export const SENSITIVE_SCOPES = [
+  'im:message.send_as_user',
+  'space:document:delete',
+  'calendar:calendar.event:delete',
+  'base:table:delete',
+] as const;
 
 /**
  * 高敏感权限类型
@@ -447,7 +445,7 @@ export type SensitiveScope = (typeof SENSITIVE_SCOPES)[number];
  *
  * @example
  * ```typescript
- * const allScopes = ["im:message", "im:message:send_as_user", "calendar:calendar:read"];
+ * const allScopes = ["im:message", "im:message.send_as_user", "calendar:calendar:read"];
  * const safeScopes = filterSensitiveScopes(allScopes);
  * // 返回: ["im:message", "calendar:calendar:read"]
  * ```
@@ -460,8 +458,8 @@ export function filterSensitiveScopes(scopes: string[]): string[] {
 // ===== 统计信息 =====
 
 /**
- * 工具动作总数: 98
- * 唯一 scope 总数: 66
+ * 工具动作总数: 96
+ * 唯一 scope 总数: 74
  * 必需应用权限总数: 20
- * 高敏感权限总数: 1
+ * 高敏感权限总数: 4
  */

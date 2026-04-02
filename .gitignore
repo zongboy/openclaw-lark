@@ -8,8 +8,12 @@ src/tools/docs/
 
 *.log
 
-# .idea
+# IDE / AI config
 .idea/
+.vscode/
+.claude/
+.cursor/
+.windsurf/
 
 
 # Internal documentation directories
@@ -18,3 +22,5 @@ src/tools/docs/
 
 /**/package-lock.json
 /**/.DS_Store
+
+.eslintcache

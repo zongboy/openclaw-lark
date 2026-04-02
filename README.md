@@ -1,7 +1,7 @@
 # OpenClaw Lark/Feishu Plugin
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![npm version](https://img.shields.io/npm/v/@larksuiteoapi/feishu-openclaw-plugin.svg)](https://www.npmjs.com/package/@larksuiteoapi/feishu-openclaw-plugin)
+[![npm version](https://img.shields.io/npm/v/@larksuite/openclaw-lark.svg)](https://www.npmjs.com/package/@larksuite/openclaw-lark)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D22-blue.svg)](https://nodejs.org/)
 
 [中文版](./README.zh.md) | English
@@ -30,18 +30,14 @@ Additionally, the plugin supports:
 
 ## Security & Risk Warnings (Read Before Use)
 
-**Core risk:** This plugin connects to your work data via Lark/Feishu APIs—messages, docs, calendars, contacts. Anything the AI can read could theoretically be leaked. While we have implemented security protections, AI systems are not yet mature or stable enough to guarantee absolute safety.
+This plugin integrates with OpenClaw AI automation capabilities and carries inherent risks such as model hallucinations, unpredictable execution, and prompt injection. After you authorize Lark/Feishu permissions, OpenClaw will act under your user identity within the authorized scope, which may lead to high-risk consequences such as leakage of sensitive data or unauthorized operations. Please use with caution.
 
-**Strong recommendations:**
-- Use a personal account for evaluation and testing at this stage.
-- Use the related Lark/Feishu apps personally, and avoid deploying to large numbers of users.
-- Avoid using it in group chats to reduce the risk of data exposure.
-- Using this bot for multiple users and/or with a company Feishu account may introduce data security and privacy risks. Make sure you comply with your organization’s internal data security and privacy requirements to avoid data leakage, privilege escalation, privacy violations, or related consequences.
+To reduce these risks, the plugin enables default security protections at multiple layers. However, these risks still exist. We strongly recommend that you do not proactively modify any default security settings; once relevant restrictions are relaxed, the risks will increase significantly, and you will bear the consequences.
 
-**Other operational risks**
-- AI is not perfect and may hallucinate: It may sometimes misunderstand your intent or generate content that appears reasonable but is inaccurate.
-- Some operations are irreversible: For example, messages sent by the AI on your behalf are sent in your name and cannot be undone once sent.
-- **Mitigation advice:** For important operations involving sending, modifying, or writing data, always **preview first, then confirm**. Never allow the AI to operate in a fully autonomous mode without human oversight.
+We recommend using the Lark/Feishu bot connected to OpenClaw as a private conversational assistant. Do not add it to group chats or allow other users to interact with it, to avoid abuse of permissions or data leakage.
+
+Please fully understand all usage risks. By using this plugin, you are deemed to voluntarily assume all related responsibilities.
+
 
 **Disclaimer:**
 

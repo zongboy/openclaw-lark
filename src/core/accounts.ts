@@ -9,11 +9,16 @@
  * unset fields fall back to the top-level defaults.
  */
 
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from 'openclaw/plugin-sdk';
+import { DEFAULT_ACCOUNT_ID, normalizeAccountId as _sdkNormalizeAccountId } from 'openclaw/plugin-sdk/account-id';
+
+const normalizeAccountId: (id: string) => string | undefined =
+  typeof _sdkNormalizeAccountId === 'function'
+    ? _sdkNormalizeAccountId
+    : (id: string) => id?.trim().toLowerCase() || undefined;
 
 import type { ClawdbotConfig } from 'openclaw/plugin-sdk';
 
-import type { FeishuConfig, LarkBrand, LarkAccount, LarkCredentials, ConfiguredLarkAccount } from './types';
+import type { ConfiguredLarkAccount, FeishuConfig, LarkAccount, LarkBrand, LarkCredentials } from './types';
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -37,25 +42,30 @@ function baseConfig(section: FeishuConfig): Omit<FeishuConfig, 'accounts'> {
   return rest;
 }
 
-/**
- * 合并 base config 与 account override。
- *
- * 当 account 将策略设为 "open" 时，剔除从 base 继承的限制性字段，
- * 避免与 "open" 语义冲突。
- */
+/** Merge base config with account override (account fields take precedence).
+ *  Performs a one-level deep merge for plain-object fields so that partial
+ *  account overrides (e.g. `footer: { model: false }`) are merged with
+ *  the base instead of replacing the entire object. */
 function mergeAccountConfig(base: Omit<FeishuConfig, 'accounts'>, override: Partial<FeishuConfig>): FeishuConfig {
-  const merged = { ...base, ...override } as FeishuConfig;
-
-  if (override.groupPolicy === 'open') {
-    if (!('groups' in override)) merged.groups = undefined;
-    if (!('groupAllowFrom' in override)) merged.groupAllowFrom = undefined;
+  const result: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    if (value === undefined) continue;
+    const baseVal = (base as Record<string, unknown>)[key];
+    // Deep-merge plain objects one level (footer, tools, heartbeat, etc.)
+    if (
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      baseVal &&
+      typeof baseVal === 'object' &&
+      !Array.isArray(baseVal)
+    ) {
+      result[key] = { ...baseVal, ...value };
+    } else {
+      result[key] = value;
+    }
   }
-
-  if (override.dmPolicy === 'open' && !('allowFrom' in override)) {
-    merged.allowFrom = ['*'];
-  }
-
-  return merged;
+  return result as FeishuConfig;
 }
 
 /** Coerce a domain string to `LarkBrand`, defaulting to `"feishu"`. */
@@ -169,6 +179,31 @@ export function getLarkAccount(cfg: ClawdbotConfig, accountId?: string | null): 
     verificationToken: merged.verificationToken ?? undefined,
     brand,
     config: merged,
+  };
+}
+
+/**
+ * Build an account-scoped config view for downstream helpers that read from
+ * `cfg.channels.feishu`.
+ *
+ * In multi-account mode, many runtime helpers expect the merged account config
+ * to already be exposed at `cfg.channels.feishu`. This mirrors the inbound
+ * path behavior so outbound/tooling code resolves per-account settings
+ * consistently.
+ *
+ * @param cfg - Original top-level plugin config
+ * @param accountId - Optional target account ID
+ * @returns Config with `channels.feishu` replaced by the merged account config
+ */
+export function createAccountScopedConfig(cfg: ClawdbotConfig, accountId?: string | null): ClawdbotConfig {
+  const account = getLarkAccount(cfg, accountId);
+
+  return {
+    ...cfg,
+    channels: {
+      ...cfg.channels,
+      feishu: account.config,
+    },
   };
 }
 

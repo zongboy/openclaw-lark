@@ -10,7 +10,7 @@
 
 import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
 import { Type } from '@sinclair/typebox';
-import { json, createToolContext, assertLarkOk, handleInvokeErrorWithAutoAuth } from '../helpers';
+import { StringEnum, assertLarkOk, createToolContext, handleInvokeErrorWithAutoAuth, json, registerTool } from '../helpers';
 import type { ChatMemberListData } from '../sdk-types';
 
 // ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ const ChatMembersSchema = Type.Object({
     description: '群 ID（格式如 oc_xxx）。' + '可以通过 feishu_chat_search 工具搜索获取',
   }),
   member_id_type: Type.Optional(
-    Type.Union([Type.Literal('open_id'), Type.Literal('union_id'), Type.Literal('user_id')]),
+    StringEnum(['open_id', 'union_id', 'user_id']),
   ),
   page_size: Type.Optional(
     Type.Integer({
@@ -52,13 +52,14 @@ interface ChatMembersParams {
 // Registration
 // ---------------------------------------------------------------------------
 
-export function registerChatMembersTool(api: OpenClawPluginApi) {
-  if (!api.config) return;
+export function registerChatMembersTool(api: OpenClawPluginApi): boolean {
+  if (!api.config) return false;
   const cfg = api.config;
 
   const { toolClient, log } = createToolContext(api, 'feishu_chat_members');
 
-  api.registerTool(
+  return registerTool(
+    api,
     {
       name: 'feishu_chat_members',
       label: 'Feishu: Get Chat Members',
@@ -118,6 +119,4 @@ export function registerChatMembersTool(api: OpenClawPluginApi) {
     },
     { name: 'feishu_chat_members' },
   );
-
-  api.logger.info?.('feishu_chat_members: Registered feishu_chat_members tool');
 }
